@@ -1,17 +1,18 @@
-import { useState } from "react";
 import "./styles/App.css";
-import Calculator from "./components/ui/Calculator";
-import UserForm from "./components/ui/UserForm";
+import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import ErrorPage from "./components/pages/ErrorPage";
+import { Layout } from "./components/pages/Layout";
+
+const rootRouter = createBrowserRouter([
+    {
+        path: "/",
+        Component: Layout,
+        errorElement: <ErrorPage />,
+    },
+]);
 
 function App() {
-    const [count, setCount] = useState(0);
-
-    return (
-        <div className="bg-[hsl(80,50%,50%)] h-screen">
-            <UserForm />
-            <Calculator />
-        </div>
-    );
+    return <RouterProvider router={rootRouter} />;
 }
 
 export default App;

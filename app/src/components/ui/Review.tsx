@@ -10,11 +10,13 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "./button";
 
-export default function Calculator() {
+export function Calculator() {
     return (
         <>
             <Drawer>
-                <DrawerTrigger>Continuar</DrawerTrigger>
+                <Button>
+                    <DrawerTrigger>Continuar</DrawerTrigger>
+                </Button>
                 <DrawerContent>
                     <DrawerHeader>
                         <DrawerTitle>Revise seus dados</DrawerTitle>

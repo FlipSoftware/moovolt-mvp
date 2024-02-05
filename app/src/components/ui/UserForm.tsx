@@ -9,142 +9,342 @@ import {
     FormDescription,
     FormField,
     FormItem,
-    FormLabel,
     FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import { useState } from "react";
+
+import {
+    Drawer,
+    DrawerClose,
+    DrawerContent,
+    DrawerDescription,
+    DrawerFooter,
+    DrawerHeader,
+    DrawerTitle,
+} from "./drawer";
+import { produtos } from "@/protudos";
+
+const UFsBrasil: string[] = [
+    "AC",
+    "AL",
+    "AP",
+    "AM",
+    "BA",
+    "CE",
+    "DF",
+    "ES",
+    "GO",
+    "MA",
+    "MT",
+    "MS",
+    "MG",
+    "PA",
+    "PB",
+    "PR",
+    "PE",
+    "PI",
+    "RJ",
+    "RN",
+    "RS",
+    "RO",
+    "RR",
+    "SC",
+    "SP",
+    "SE",
+    "TO",
+];
 
 const formSchema = z.object({
     nome: z.string().min(2, {
         message: "Nome precisa ter pelo menos 2 characteres.",
     }),
     apelido: z.string().optional(),
-    CPF: z.number().nonnegative().min(11, {
-        message: "CPF inválido. Use apenas números.",
+    CPF: z.string().refine((value) => value.length == 11, {
+        message: "CPF inválido. Confira seu documento e digite novamente.",
     }),
-    RG: z.string().min(10, {
-        message: "RG inválido. Use apenas números.",
-    }),
-    emissor: z.string(), // TODO: lista de emissores de RG no Brasil
-    UF: z.string(), // TODO: lista com todas as unidades federativas
-    sexo: z.enum(["Masculino", "Feminino"]),
-    nascimento: z
-        .date()
-        .min(new Date("1900-01-01"), { message: "Idade inválida." }),
-    cel: z.number().optional(),
+    UF: z.string(),
+    produto: z.string().optional(),
+    cel: z.string().optional(),
     email: z.string().email(),
     credito: z.number(),
 });
 
-export default function UserForm() {
+export function UserForm() {
+    const [profile, setProfile] = useState<z.infer<typeof formSchema>>();
+    const [openDialog, setOpenDialog] = useState(false);
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             nome: "",
+            apelido: "",
+            CPF: "",
+            UF: "",
+            produto: "",
+            cel: "",
+            email: "",
+            credito: 0,
         },
     });
 
     function onSubmit(values: z.infer<typeof formSchema>) {
         // ✅ This will be type-safe and validated.
-        console.log(values);
+        setProfile(values);
+        setOpenDialog(!openDialog);
     }
+
     return (
         <>
-            <Form {...form}>
-                <form
-                    onSubmit={form.handleSubmit(onSubmit)}
-                    className="space-y-8"
-                >
-                    <FormField
-                        control={form.control}
-                        name="nome"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Nome</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        placeholder="shadcn"
-                                        {...field}
-                                    />
-                                </FormControl>
-                                <FormDescription>
-                                    This is your public display name.
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <Button type="submit">Submit</Button>
-                </form>
-            </Form>
-            <CardWithForm />
-        </>
-    );
-}
-
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-
-export function CardWithForm() {
-    return (
-        <Card className="w-[350px]">
-            <CardHeader>
-                <CardTitle>Create project</CardTitle>
-                <CardDescription>
-                    Deploy your new project in one-click.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <form>
-                    <div className="grid w-full items-center gap-4">
-                        <div className="flex flex-col space-y-1.5">
-                            <Label htmlFor="name">Name</Label>
-                            <Input
-                                id="name"
-                                placeholder="Name of your project"
+            <Card className="max-w-[800px] flex-justify-self-center">
+                <CardHeader>
+                    <CardTitle>Calculadora de Propostas</CardTitle>
+                    <CardDescription>
+                        Calcule facilmente quanto você precisa investir.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Form {...form}>
+                        <form
+                            onSubmit={form.handleSubmit(onSubmit)}
+                            className="grid gap-4"
+                        >
+                            <span className="text-red-6">
+                                campos com * são obrigatórios
+                            </span>
+                            <FormField
+                                control={form.control}
+                                name="nome"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Nome"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Preencha com seu nome e sobrenome.
+                                            <span className="text-red-6">
+                                                *
+                                            </span>
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
                             />
-                        </div>
-                        <div className="flex flex-col space-y-1.5">
-                            <Label htmlFor="framework">Framework</Label>
-                            <Select>
-                                <SelectTrigger id="framework">
-                                    <SelectValue placeholder="Select" />
-                                </SelectTrigger>
-                                <SelectContent position="popper">
-                                    <SelectItem value="next">
-                                        Next.js
-                                    </SelectItem>
-                                    <SelectItem value="sveltekit">
-                                        SvelteKit
-                                    </SelectItem>
-                                    <SelectItem value="astro">Astro</SelectItem>
-                                    <SelectItem value="nuxt">
-                                        Nuxt.js
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                </form>
-            </CardContent>
-            <CardFooter className="flex justify-between">
-                <Button variant="outline">Cancel</Button>
-                <Button>Deploy</Button>
-            </CardFooter>
-        </Card>
+                            <FormField
+                                control={form.control}
+                                name="apelido"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Apelido (opcional)"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Digite um apelido que gostaria de
+                                            usar para sua conta.
+                                            <span className="text-red-6">
+                                                *
+                                            </span>
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="CPF"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="CPF"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Cadastro de Pessoa Física.
+                                            <span className="text-red-6">
+                                                *
+                                            </span>
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="UF"
+                                render={() => (
+                                    <Select>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="UF" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectGroup>
+                                                {UFsBrasil.map((uf) => (
+                                                    <SelectItem
+                                                        key={uf}
+                                                        value={uf}
+                                                    >
+                                                        {uf}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="produto"
+                                render={() => (
+                                    <Select>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Produto" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectGroup>
+                                                {produtos.map((produto) => (
+                                                    <SelectItem
+                                                        key={produto}
+                                                        value={produto}
+                                                    >
+                                                        ID do Produto: {produto}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="cel"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Número de celular"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="email"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Endereço de e-mail."
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Ex: meunome@gmail.com
+                                            <span className="text-red-6">
+                                                *
+                                            </span>
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="credito"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Crédito"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormDescription>
+                                            <span className="text-red-6">
+                                                *
+                                            </span>
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <Button
+                                variant="outline"
+                                type="submit"
+                                onClick={() => openDialog}
+                            >
+                                Continuar
+                            </Button>
+                            <Drawer open={openDialog}>
+                                <DrawerContent>
+                                    <DrawerHeader>
+                                        <DrawerTitle>
+                                            Revise seus dados
+                                        </DrawerTitle>
+                                        <h1 className="">
+                                            Nome: {profile?.nome}
+                                        </h1>
+                                        <h2 className="">
+                                            Apelido:{" "}
+                                            {profile?.apelido
+                                                ? profile.apelido
+                                                : "nenhum"}
+                                        </h2>
+                                        <h2 className="">
+                                            CPF: {profile?.CPF}
+                                        </h2>
+                                        <h2 className="">UF: {profile?.UF}</h2>
+                                        <h3 className="">
+                                            Cel: {profile?.cel}
+                                        </h3>
+                                        <h3 className="">
+                                            Email: {profile?.email}
+                                        </h3>
+                                        Crédito: {profile?.credito}
+                                        <DrawerDescription>
+                                            Seus dados serão analisados após o
+                                            envio.
+                                        </DrawerDescription>
+                                    </DrawerHeader>
+                                    <DrawerFooter>
+                                        <DrawerClose>
+                                            <Button variant="outline">
+                                                Cancelar
+                                            </Button>
+                                        </DrawerClose>
+                                    </DrawerFooter>
+                                </DrawerContent>
+                            </Drawer>
+                        </form>
+                    </Form>
+                </CardContent>
+            </Card>
+        </>
     );
 }

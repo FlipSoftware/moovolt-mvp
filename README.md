@@ -9,7 +9,7 @@
 <br>
 
 ## Visão Geral da Aplicação
-![App-workflow](https://github.com/FlipSoftware/moov.olt-mvp/assets/66398400/0e6e848c-1ecb-4307-974c-59997179a5a0)
+![App-workflow](https://github.com/FlipSoftware/moov.olt-mvp/assets/66398400/775ec4b7-dde6-4e84-8106-b53760209692)
 
 # Especificação da Aplicação
 

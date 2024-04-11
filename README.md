@@ -8,8 +8,8 @@
 <br>
 <br>
 
-## Visãl Geral da Aplicação
-![Wireframe - 1](https://github.com/FlipSoftware/moov.olt-landing-page/assets/66398400/b1999626-eb87-4b67-8b54-d0635cd6a439)
+## Visão Geral da Aplicação
+![App-workflow](https://github.com/FlipSoftware/moov.olt-mvp/assets/66398400/0e6e848c-1ecb-4307-974c-59997179a5a0)
 
 # Especificação da Aplicação
 

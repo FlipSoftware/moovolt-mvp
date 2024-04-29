@@ -1,7 +1,7 @@
 cargo-features = ["edition2024"]
 
 [package]
-name = "backend"
+name = "moovolt-csms-server"
 version = "0.1.0"
 edition = "2024"
 
@@ -10,3 +10,8 @@ tokio = { version = "*", features = ["full"] }
 axum = { git = "https://github.com/tokio-rs/axum.git", features = ["ws"] }
 tracing = "*"
 tracing-subscriber = "*"
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+tower-http = { version = "*", features = ["fs", "trace"] }
+rust-ocpp = "*"
+strum_macros = "*"

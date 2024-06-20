@@ -6,14 +6,12 @@ use axum::extract::ConnectInfo;
 use axum::routing::get;
 use axum::Router;
 use axum_extra::TypedHeader;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use dotenvy_macro::dotenv;
 use futures::{SinkExt, StreamExt};
-use rust_ocpp::v1_6::messages::boot_notification::{
-    BootNotificationRequest, BootNotificationResponse,
-};
-use tokio::net;
-use tracing::{info, warn};
+use rust_ocpp::v1_6::messages::{authorize::AuthorizeRequest, boot_notification::{BootNotificationRequest, BootNotificationResponse}, cancel_reservation::CancelReservationRequest, change_availability::ChangeAvailabilityRequest, change_configuration::ChangeConfigurationRequest, clear_cache::ClearCacheRequest, clear_charging_profile::ClearChargingProfileRequest, data_transfer::DataTransferRequest, diagnostics_status_notification::DiagnosticsStatusNotificationRequest, firmware_status_notification::FirmwareStatusNotificationRequest, get_composite_schedule::GetCompositeScheduleRequest, get_diagnostics::GetDiagnosticsRequest, get_local_list_version::GetLocalListVersionRequest, heart_beat::HeartbeatRequest, meter_values::MeterValuesRequest, remote_start_transaction::RemoteStartTransactionRequest, remote_stop_transaction::RemoteStopTransactionRequest, reserve_now::ReserveNowRequest, reset::ResetRequest, send_local_list::SendLocalListRequest, set_charging_profile::SetChargingProfileRequest, status_notification::StatusNotificationRequest, trigger_message::TriggerMessageRequest, unlock_connector::UnlockConnectorRequest, update_firmware::UpdateFirmwareRequest};
+use tokio::{net, sync::OnceCell};
+use tracing::{event, info, Level};
 
 type OcppMessageTypeId = usize;
 type OcppMessageId = String;
@@ -24,108 +22,136 @@ type OcppErrorDetails = serde_json::Value;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum OcppActionEnum {
+    // OCPP 1.6 JSON
+    // Core
     Authorize,
     BootNotification,
-    CancelReservation,
-    CertificateSigned,
     ChangeAvailability,
-    ClearCache,
-    ClearChargingProfile,
-    ClearDisplayMessage,
-    ClearedChargingLimit,
-    ClearVariableMonitoring,
-    CostUpdated,
-    CustomerInformation,
+    ChangeConfiguration , // TODO: new 1.6 core
     DataTransfer,
-    DeleteCertificate,
-    FirmwareStatusNotification,
-    Get15118EVCertificate,
-    GetBaseReport,
-    GetCertificateStatus,
-    GetChargingProfile,
-    GetCompositeSchedule,
-    GetDisplayMessage,
-    GetInstalledCertificateIds,
-    GetLocalListVersion,
-    GetLog,
-    GetMonitoringReport,
-    GetReport,
-    GetTransactionStatus,
-    GetVariables,
+    ClearCache,
+    GetConfiguration, // TODO: new 1.6 core
     Heartbeat,
-    InstallCertificate,
-    LogStatusNotification,
     MeterValues,
-    NotifyChargingLimit,
-    NotifyCustomerInformation,
-    NotifyDisplayMessages,
-    NotifyEVChargingNeeds,
-    NotifyEVChargingSchedule,
-    NotifyEvent,
-    NotifyMonitoringReport,
-    NotifyReport,
-    PublishFirmware,
-    PublishFirmwareStatusNotification,
-    ReportChargingProfiles,
-    RequestStartTransaction,
-    RequestStopTransaction,
-    ReservationStatusUpdate,
-    ReserveNow,
+    RemoteStartTransaction, // TODO: new 1.6 core
+    RemoteStopTransaction, // TODO: new 1.6 core
     Reset,
-    SecurityEventNotification,
-    SendLocalList,
-    SetChargingProfile,
-    SetDisplayMessage,
-    SetMonitoringBase,
-    SetMonitoringLevel,
-    SetNetworkProfile,
-    SetVariableMonitoring,
-    SetVariables,
-    SignCertificate,
     StatusNotification,
-    TransactionEvent,
-    TriggerMessage,
+    StartTransaction,
+    StopTransaction,
     UnlockConnector,
-    UnpublishFirmware,
+    // Firmware
+    DiagnosticsStatusNotification, // TODO: new 1.6 firmware
+    FirmwareStatusNotification,
+    GetDiagnostics, // TODO: new 1.6 firmware
     UpdateFirmware,
+    // Local Authorization
+    GetLocalListVersion,
+    SendLocalList,
+    // Remote Trigger
+    CancelReservation,
+    ReserveNow,
+    // Reservation
+    ClearChargingProfile,
+    GetCompositeSchedule,
+    SetChargingProfile, // TODO: new 1.6 firmware
+    // Smart Charging
+    TriggerMessage,
+    // TODO: OCPP 2.0.1 JSON
+    // TODO: Identify OCPP 2.0.1 and 1.6 versions to switch Enums and Messages pragrammatically
+    // CertificateSigned,
+    // ClearDisplayMessage,
+    // ClearedChargingLimit,
+    // ClearVariableMonitoring,
+    // CostUpdated,
+    // CustomerInformation,
+    // DeleteCertificate,
+    // Get15118EVCertificate,
+    // GetBaseReport,
+    // GetCertificateStatus,
+    // GetChargingProfile,
+    // GetDisplayMessage,
+    // GetInstalledCertificateIds,
+    // GetLog,
+    // GetMonitoringReport,
+    // GetReport,
+    // GetTransactionStatus,
+    // GetVariables,
+    // InstallCertificate,
+    // LogStatusNotification,
+    // NotifyChargingLimit,
+    // NotifyCustomerInformation,
+    // NotifyDisplayMessages,
+    // NotifyEVChargingNeeds,
+    // NotifyEVChargingSchedule,
+    // NotifyEvent,
+    // NotifyMonitoringReport,
+    // NotifyReport,
+    // PublishFirmware,
+    // PublishFirmwareStatusNotification,
+    // ReportChargingProfiles,
+    // RequestStartTransaction,
+    // RequestStopTransaction,
+    // ReservationStatusUpdate,
+    // SecurityEventNotification,
+    // SetDisplayMessage,
+    // SetMonitoringBase,
+    // SetMonitoringLevel,
+    // SetNetworkProfile,
+    // SetVariableMonitoring,
+    // SetVariables,
+    // SignCertificate,
+    // TransactionEvent,
+    // UnpublishFirmware,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum OcppPayload {
-    Authorize(rust_ocpp::v1_6::messages::authorize::AuthorizeRequest),
+    // OCPP 1.6 JSON
+    // Core
+    Authorize(AuthorizeRequest),
     BootNotification(BootNotificationRequest),
-    CancelReservation(rust_ocpp::v1_6::messages::cancel_reservation::CancelReservationRequest),
-    ChangeAvailability(rust_ocpp::v1_6::messages::change_availability::ChangeAvailabilityRequest),
-    ClearCache(rust_ocpp::v1_6::messages::clear_cache::ClearCacheRequest),
-    ClearChargingProfile(
-        rust_ocpp::v1_6::messages::clear_charging_profile::ClearChargingProfileRequest,
-    ),
-    DataTransfer(rust_ocpp::v1_6::messages::data_transfer::DataTransferRequest),
+    ChangeAvailability(ChangeAvailabilityRequest),
+    ChangeConfiguration(ChangeConfigurationRequest), // TODO: new 1.6 core
+    ClearCache(ClearCacheRequest),
+    DataTransfer(DataTransferRequest),
+    GetConfiguration, // TODO: new 1.6 core
+    Heartbeat(HeartbeatRequest),
+    MeterValues(MeterValuesRequest),
+    RemoteStartTransaction(RemoteStartTransactionRequest), // TODO: new 1.6 core
+    RemoteStopTransaction(RemoteStopTransactionRequest), // TODO: new 1.6 core
+    // RequestStartTransaction(StartTransactionRequest), // TODO: remove and test
+    // RequestStopTransaction(StopTransactionRequest), // TODO: remove and test
+    Reset(ResetRequest),
+    StatusNotification(StatusNotificationRequest),
+    UnlockConnector(UnlockConnectorRequest),
+    // Firmware
+    DiagnosticsStatusNotification(DiagnosticsStatusNotificationRequest),
     FirmwareStatusNotification(
-        rust_ocpp::v1_6::messages::firmware_status_notification::FirmwareStatusNotificationRequest,
+        FirmwareStatusNotificationRequest,
+    ),
+    GetDiagnostics(GetDiagnosticsRequest), // TODO: new 1.6 firmware
+    UpdateFirmware(UpdateFirmwareRequest),
+    // Local Authorization
+    GetLocalListVersion(
+        GetLocalListVersionRequest,
+    ),
+    SendLocalList(SendLocalListRequest),
+    // Remote Trigger
+    CancelReservation(CancelReservationRequest),
+    ReserveNow(ReserveNowRequest),
+    // Reservation
+    ClearChargingProfile(
+        ClearChargingProfileRequest,
     ),
     GetCompositeSchedule(
-        rust_ocpp::v1_6::messages::get_composite_schedule::GetCompositeScheduleRequest,
+        GetCompositeScheduleRequest,
     ),
-    GetLocalListVersion(
-        rust_ocpp::v1_6::messages::get_local_list_version::GetLocalListVersionRequest,
-    ),
-    Heartbeat(rust_ocpp::v1_6::messages::heart_beat::HeartbeatRequest),
-    LogStatusNotification(
-        rust_ocpp::v1_6::messages::status_notification::StatusNotificationRequest,
-    ),
-    MeterValues(rust_ocpp::v1_6::messages::meter_values::MeterValuesRequest),
-    RequestStartTransaction(rust_ocpp::v1_6::messages::start_transaction::StartTransactionRequest),
-    RequestStopTransaction(rust_ocpp::v1_6::messages::stop_transaction::StopTransactionRequest),
-    ReserveNow(rust_ocpp::v1_6::messages::reserve_now::ReserveNowRequest),
-    Reset(rust_ocpp::v1_6::messages::reset::ResetRequest),
-    SendLocalList(rust_ocpp::v1_6::messages::send_local_list::SendLocalListRequest),
-    SetChargingProfile(rust_ocpp::v1_6::messages::set_charging_profile::SetChargingProfileRequest),
-    StatusNotification(rust_ocpp::v1_6::messages::status_notification::StatusNotificationRequest),
-    TriggerMessage(rust_ocpp::v1_6::messages::trigger_message::TriggerMessageRequest),
-    UnlockConnector(rust_ocpp::v1_6::messages::unlock_connector::UnlockConnectorRequest),
-    UpdateFirmware(rust_ocpp::v1_6::messages::update_firmware::UpdateFirmwareRequest),
+    SetChargingProfile(SetChargingProfileRequest),
+    // Smart Chargin
+    TriggerMessage(TriggerMessageRequest),
+    // TODO: Identify OCPP 2.0.1 and 1.6 versions to switch Enums and Messages pragrammatically
 }
 
 /// Call: [<MessageTypeId>, "<MessageId>", "<Action>", {<Payload>}]
@@ -169,9 +195,16 @@ pub enum OcppMessageType {
     CallError(usize, String, String, String, serde_json::Value),
 }
 
+static TIME_NOW: OnceCell<DateTime<Utc>> = OnceCell::const_new();
+
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt().init();
+    async fn time_now() -> DateTime<Utc> {
+        Utc::now()
+    }
+    let time_now = TIME_NOW.get_or_init(time_now).await;
+    
+    tracing_subscriber::fmt().with_max_level(Level::DEBUG).init();
 
     // Get some useful errors before the application ends with panic
     panic::set_hook(Box::new(|err| {
@@ -189,7 +222,7 @@ async fn main() {
     // Create the Axum router
     let router = Router::new()
         .route("/ocpp16j/NKYK430037668", get(upgrade_to_ws))
-        .route("/", get(hello_route));
+        .route("/", get(healthcheck_route));
 
     // Start the Axum server
     axum::serve(
@@ -267,7 +300,10 @@ async fn handle_ws(socket: axum::extract::ws::WebSocket, who: SocketAddr) {
                 // Deserialize the received JSON into OcppMessageType and then get the Payload, in this case, BootNotificationRequest
                 if let Ok(call) = serde_json::from_str::<OcppMessageType>(&text) {
                     // Handle the BootNotificationRequest
-                    warn!("BootNotificationRequest: {call:?}");
+                    match &call {
+                        OcppMessageType::Call(_, _, action, _) => event!(Level::DEBUG, ACTION_TYPE = action),
+                        _ => (),
+                    }
                     let response = match call {
                         OcppMessageType::Call(_, _, _, payload) => {
                             // let action = OcppActionEnum::from_str("BootNotification").unwrap();
@@ -316,8 +352,16 @@ async fn handle_ws(socket: axum::extract::ws::WebSocket, who: SocketAddr) {
     }
 }
 
-async fn hello_route() -> impl axum::response::IntoResponse {
-    axum::response::Html::from("<h1>Hello World</h1>")
+async fn healthcheck_route() -> impl axum::response::IntoResponse {
+    if let Some(time) = TIME_NOW.get() {
+        axum::response::Html::from(
+            format!("<h1>Server working. Started at: {time}</h1>")
+        )
+    } else {
+        axum::response::Html::from(
+            format!("<h1>Server not started yet</h1>")
+        )
+    }
 }
 
 fn default_error_response() -> BootNotificationResponse {

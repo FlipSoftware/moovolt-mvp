@@ -9,22 +9,24 @@ use axum_extra::TypedHeader;
 use chrono::Utc;
 use dotenvy_macro::dotenv;
 use futures::StreamExt;
+use owo_colors::OwoColorize;
 use rust_ocpp::v1_6::messages::{
     authorize::{AuthorizeRequest, AuthorizeResponse},
     boot_notification::{BootNotificationRequest, BootNotificationResponse},
     change_availability::ChangeAvailabilityRequest,
     change_configuration::{ChangeConfigurationRequest, ChangeConfigurationResponse},
-    clear_cache::ClearCacheRequest,
-    data_transfer::DataTransferRequest,
+    clear_cache::{ClearCacheRequest, ClearCacheResponse},
+    data_transfer::{DataTransferRequest, DataTransferResponse},
     get_configuration::{GetConfigurationRequest, GetConfigurationResponse},
-    heart_beat::HeartbeatRequest,
-    meter_values::MeterValuesRequest,
-    remote_start_transaction::RemoteStartTransactionRequest,
-    remote_stop_transaction::RemoteStopTransactionRequest,
-    reset::ResetRequest,
+    heart_beat::{HeartbeatRequest, HeartbeatResponse},
+    meter_values::{MeterValuesRequest, MeterValuesResponse},
+    remote_start_transaction::{RemoteStartTransactionRequest, RemoteStartTransactionResponse},
+    remote_stop_transaction::{RemoteStopTransactionRequest, RemoteStopTransactionResponse},
+    reset::{ResetRequest, ResetResponse},
     start_transaction::{StartTransactionRequest, StartTransactionResponse},
-    status_notification::StatusNotificationRequest,
-    unlock_connector::UnlockConnectorRequest,
+    status_notification::{StatusNotificationRequest, StatusNotificationResponse},
+    stop_transaction::{StopTransactionRequest, StopTransactionResponse},
+    unlock_connector::{UnlockConnectorRequest, UnlockConnectorResponse},
 };
 use strum_macros::Display;
 use tokio::{net, sync::OnceCell};
@@ -117,12 +119,14 @@ pub enum ChangeConfigurationKind {
 #[serde(untagged)]
 pub enum ClearCacheKind {
     Request(ClearCacheRequest),
+    Response(ClearCacheResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
 pub enum DataTransferKind {
     Request(DataTransferRequest),
+    Response(DataTransferResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
@@ -136,30 +140,35 @@ pub enum GetConfigurationKind {
 #[serde(untagged)]
 pub enum HeartbeatKind {
     Request(HeartbeatRequest),
+    Response(HeartbeatResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
 pub enum MeterValuesKind {
     Request(MeterValuesRequest),
+    Response(MeterValuesResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
 pub enum RemoteStartTransactionKind {
     Request(RemoteStartTransactionRequest),
+    Response(RemoteStartTransactionResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
 pub enum RemoteStopTransactionKind {
     Request(RemoteStopTransactionRequest),
+    Response(RemoteStopTransactionResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
 pub enum ResetKind {
     Request(ResetRequest),
+    Response(ResetResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
@@ -171,14 +180,23 @@ pub enum StartTransactionKind {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
+pub enum StopTransactionKind {
+    Request(StopTransactionRequest),
+    Response(StopTransactionResponse),
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
+#[serde(untagged)]
 pub enum StatusNotificationKind {
     Request(StatusNotificationRequest),
+    Response(StatusNotificationResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
 pub enum UnlockConnectorKind {
     Request(UnlockConnectorRequest),
+    Response(UnlockConnectorResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
@@ -200,7 +218,7 @@ pub enum OcppPayload {
     Reset(ResetKind),                                   // Server → Charger
     StartTransaction(StartTransactionKind),             // Charger → Server
     StatusNotification(StatusNotificationKind),         // Charger → Server
-    StopTransaction(StatusNotificationKind),            // Charger → Server
+    StopTransaction(StopTransactionKind),               // Charger → Server
     UnlockConnector(UnlockConnectorKind),               // Server → Charger
 }
 
@@ -255,9 +273,7 @@ async fn main() {
         let formatted = format!("{}", date_time.format("%d/%m/%Y %H:%M"));
         formatted
     }
-    let _time_now = TIME_NOW
-        .get_or_init(time_now)
-        .await;
+    let _time_now = TIME_NOW.get_or_init(time_now).await;
 
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
@@ -291,14 +307,12 @@ async fn main() {
 }
 
 // Upgrade from a HTTP connection to a WebSocket connection
-#[axum::debug_handler]
 async fn upgrade_to_ws(
     ws: axum::extract::WebSocketUpgrade,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl axum::response::IntoResponse {
     // Check if the user agent is a valid client
-    warn!("{user_agent:?}");
     match user_agent {
         Some(TypedHeader(agent)) => {
             if agent.as_str() == "Websocket Client" {
@@ -307,22 +321,30 @@ async fn upgrade_to_ws(
                 warn!("User agent {agent} is not a valid Websocket Client");
             }
         },
-        None => warn!("User agent is not present"),
+        None => warn!("User agent is not present. Continue without specific platform check"),
     }
     ws.on_upgrade(move |socket| handle_socket(socket, addr))
 }
 
 async fn handle_socket(mut socket: axum::extract::ws::WebSocket, addr: SocketAddr) {
-    info!("New WebSocket connection: {addr}");
+    info!(
+        "{} {addr}",
+        "New WebSocket connection:"
+            .green()
+            .bold()
+    );
 
-    while let Some(Ok(msg)) = socket
-        .next()
-        .await
-    {
+    while let Some(Ok(msg)) = socket.next().await {
         match msg {
             AxumWSMessage::Text(text) => {
                 let message = text.clone();
-                info!("Received text message: {message} \nfrom: {addr}");
+                info!(
+                    "\n\t{0}\n\t{1}\n\t\t{message}\n{2} {3}\n\n",
+                    "INCOMING CALL".truecolor(255, 255, 255),
+                    "FROM CHARGER".truecolor(180, 180, 180),
+                    " ADDR ".on_truecolor(0, 115, 0),
+                    addr.truecolor(0, 215, 0)
+                );
                 handle_ocpp_messages(text, &mut socket).await;
             },
             AxumWSMessage::Binary(_) => warn!("Unexpected binary message"),
@@ -336,44 +358,46 @@ async fn handle_socket(mut socket: axum::extract::ws::WebSocket, addr: SocketAdd
 async fn handle_ocpp_messages(message: String, socket: &mut axum::extract::ws::WebSocket) {
     // Try to parse the JSON message
     match serde_json::from_str(&message) {
-        Ok(ocpp_message) => {
-            debug!("Parsed OCPP message: {ocpp_message:?}");
-            //
-            match ocpp_message {
-                OcppMessageType::Call(message_type_id, message_id, action, payload) => {
-                    let action = match OcppActionEnum::from_str(&action) {
-                        Ok(action) => {
-                            debug!("Parsed OCPP Action: {action:?}");
-                            action
-                        },
-                        Err(err) => {
-                            warn!("Failed to parse OCPP Action: {err:?}");
-                            return;
-                        },
-                    };
-                    handle_ocpp_call(message_type_id, message_id, action, payload, socket).await;
-                },
-                OcppMessageType::CallResult(message_type_id, message_id, payload) => {
-                    handle_ocpp_call_result(message_type_id, message_id, payload, socket).await;
-                },
-                OcppMessageType::CallError(
+        Ok(ocpp_message) => match ocpp_message {
+            OcppMessageType::Call(message_type_id, message_id, action, payload) => {
+                let action = match OcppActionEnum::from_str(&action) {
+                    Ok(action) => {
+                        debug!(
+                            "\n{0}\n {1}",
+                            " PARSED OCPP CALL "
+                                .on_truecolor(0, 0, 0)
+                                .bold(),
+                            format!(" {:?} ", action).on_truecolor(139, 0, 139)
+                        );
+                        action
+                    },
+                    Err(err) => {
+                        error!("Failed to parse OCPP Call Action: {err:?}");
+                        return;
+                    },
+                };
+                handle_ocpp_call(message_type_id, message_id, action, payload, socket).await;
+            },
+            OcppMessageType::CallResult(message_type_id, message_id, payload) => {
+                handle_ocpp_call_result(message_type_id, message_id, payload, socket).await;
+            },
+            OcppMessageType::CallError(
+                message_type_id,
+                message_id,
+                error_code,
+                error_description,
+                error_details,
+            ) => {
+                handle_ocpp_call_error(
                     message_type_id,
                     message_id,
                     error_code,
                     error_description,
                     error_details,
-                ) => {
-                    handle_ocpp_call_error(
-                        message_type_id,
-                        message_id,
-                        error_code,
-                        error_description,
-                        error_details,
-                        socket,
-                    )
-                    .await;
-                },
-            }
+                    socket,
+                )
+                .await;
+            },
         },
         Err(err) => {
             warn!("Failed to parse OCPP message: {err:?}");
@@ -391,24 +415,25 @@ async fn handle_ocpp_call(
     socket: &mut axum::extract::ws::WebSocket,
 ) {
     let payload = match serde_json::from_value::<OcppPayload>(payload) {
-        Ok(ocpp_payload) => {
-            debug!("Parsed OCPP Payload: {ocpp_payload:?}");
-            ocpp_payload
-        },
+        Ok(ocpp_payload) => ocpp_payload,
         Err(err) => {
             error!("Failed to parse OCPP Payload: {err:?}");
             return;
         },
     };
-    // Handle the OCPP Action
+    // Handle the OCPP Call Action
     use OcppActionEnum::*;
     match action {
         Authorize => {
             match payload {
                 OcppPayload::Authorize(AuthorizeKind::Request(authorize)) => {
-                    info!("Validating OCPP Authorize: {authorize:?}");
+                    info!(
+                        "\n{0}\n {1}\n{authorize:?}",
+                        " CALL ".on_truecolor(0, 0, 0).bold(),
+                        " REQUEST ".on_truecolor(0, 99, 255)
+                    );
                     let response = OcppCallResult {
-                        message_type_id: 3, // 3 = CallResult or CallError sent by the server
+                        message_type_id: 3,
                         message_id,
                         payload: OcppPayload::Authorize(AuthorizeKind::Response(
                             AuthorizeResponse {
@@ -421,7 +446,13 @@ async fn handle_ocpp_call(
                         )),
                     };
                     let response_json = serde_json::to_string(&response).unwrap();
-                    info!("Sending OCPP Authorize: {response_json}");
+                    info!(
+                        "\n{0}\n {1}\n{response_json:?}",
+                        " CALL RESULT "
+                            .on_truecolor(0, 0, 0)
+                            .bold(),
+                        " RESPONSE ".on_truecolor(0, 125, 0)
+                    );
                     socket
                         .send(axum::extract::ws::Message::Text(response_json))
                         .await
@@ -436,72 +467,179 @@ async fn handle_ocpp_call(
                     if boot_notification.charge_point_serial_number
                         == Some("NKYK430037668".to_string())
                     {
-                        info!("Validating OCPP BootNotification: {boot_notification:?}");
+                        info!(
+                            "\n{0}\n {1}\n{boot_notification:?}",
+                            " CALL ".on_truecolor(0, 0, 0).bold(),
+                            " REQUEST ".on_truecolor(0, 99, 255)
+                        );
                         let response = OcppCallResult {
-                            message_type_id: 3, // 3 = CallResult or CallError sent by the server
+                            message_type_id: 3,
                             message_id,
                             payload: OcppPayload::BootNotification(BootNotificationKind::Response(
                                 BootNotificationResponse {
                                     status: rust_ocpp::v1_6::types::RegistrationStatus::Accepted,
                                     current_time: Utc::now(),
-                                    interval: 60,
+                                    interval: 300,
                                 },
                             )),
                         };
                         let response_json = serde_json::to_string(&response).unwrap();
-                        info!("Sending OCPP BootNotification: {response_json}");
+                        info!(
+                            "\n{0}\n {1}\n{response_json:?}",
+                            " CALL RESULT "
+                                .on_truecolor(0, 0, 0)
+                                .bold(),
+                            " RESPONSE ".on_truecolor(0, 125, 0)
+                        );
                         socket
                             .send(axum::extract::ws::Message::Text(response_json))
                             .await
                             .unwrap();
                     } else {
-                        warn!("Invalid OCPP BootNotification: {boot_notification:?}");
+                        error!(
+                            "Invalid Charger Serial Number. BootNotification: \
+                             {boot_notification:?}"
+                        );
                     }
+                },
+                _ => error!("Invalid OCPP BootNotification payload"),
+            }
+        },
+        ChangeAvailability => {
+        },
+        ChangeConfiguration => {
+        },
+        ClearCache => {
+        },
+        DataTransfer => {
+            match payload {
+                OcppPayload::DataTransfer(DataTransferKind::Request(data_transfer)) => {
+                    info!(
+                        "\n{0}\n {1}\n{data_transfer:?}",
+                        " CALL ".on_truecolor(0, 0, 0).bold(),
+                        " REQUEST ".on_truecolor(0, 99, 255)
+                    );
+                    let response = OcppCallResult {
+                        message_type_id: 3,
+                        message_id,
+                        payload: OcppPayload::DataTransfer(DataTransferKind::Response(
+                            DataTransferResponse {
+                                status: rust_ocpp::v1_6::types::DataTransferStatus::Accepted,
+                                data: Some("Data Transfer Accepted".to_string()),
+                            },
+                        )),
+                    };
+                    let response_json = serde_json::to_string(&response).unwrap();
+                    info!(
+                        "\n{0}\n {1}\n{response_json:?}",
+                        " CALL RESULT "
+                            .on_truecolor(0, 0, 0)
+                            .bold(),
+                        " RESPONSE ".on_truecolor(0, 125, 0)
+                    );
+                    socket
+                        .send(axum::extract::ws::Message::Text(response_json))
+                        .await
+                        .unwrap();
                 },
                 _ => (),
             }
         },
-        ChangeAvailability => {
-            info!("Handling OCPP ChangeAvailability action");
-        },
-        ChangeConfiguration => {
-            info!("Handling OCPP ChangeConfiguration action");
-        },
-        ClearCache => {
-            info!("Handling OCPP ClearCache action");
-        },
-        DataTransfer => {
-            info!("Handling OCPP DataTransfer action");
-        },
         GetConfiguration => {
-            info!("Handling OCPP GetConfiguration action");
         },
         Heartbeat => {
-            info!("Handling OCPP Heartbeat action");
+            match payload {
+                OcppPayload::Heartbeat(HeartbeatKind::Request(heartbeat)) => {
+                    info!(
+                        "\n{0}\n {1}\n{heartbeat:?}",
+                        " CALL ".on_truecolor(0, 0, 0).bold(),
+                        " REQUEST ".on_truecolor(0, 99, 255)
+                    );
+                    let response = OcppCallResult {
+                        message_type_id: 3,
+                        message_id,
+                        payload: OcppPayload::Heartbeat(HeartbeatKind::Response(
+                            HeartbeatResponse { current_time: Utc::now() },
+                        )),
+                    };
+                    let response_json = serde_json::to_string(&response).unwrap();
+                    info!(
+                        "\n{0}\n {1}\n{response_json:?}",
+                        " CALL RESULT "
+                            .on_truecolor(0, 0, 0)
+                            .bold(),
+                        " RESPONSE ".on_truecolor(0, 125, 0)
+                    );
+                    socket
+                        .send(axum::extract::ws::Message::Text(response_json))
+                        .await
+                        .unwrap();
+                },
+                _ => (),
+            }
         },
         MeterValues => {
-            info!("Handling OCPP MeterValues action");
         },
         RemoteStartTransaction => {
-            info!("Handling OCPP RemoteStartTransaction action");
         },
         RemoteStopTransaction => {
-            info!("Handling OCPP RemoteStopTransaction action");
         },
         Reset => {
-            info!("Handling OCPP Reset action");
         },
         StatusNotification => {
-            info!("Handling OCPP StatusNotification action");
+            match payload {
+                OcppPayload::StatusNotification(StatusNotificationKind::Request(
+                    status_notification,
+                )) => {
+                    info!(
+                        "\n{0}\n {1}\n{status_notification:#?}",
+                        " CALL ".on_truecolor(0, 0, 0).bold(),
+                        " REQUEST ".on_truecolor(0, 99, 255)
+                    );
+                },
+                _ => (),
+            }
         },
         StartTransaction => {
-            info!("Handling OCPP StartTransaction action");
         },
         StopTransaction => {
-            info!("Handling OCPP StopTransaction action");
+            match payload {
+                OcppPayload::StopTransaction(StopTransactionKind::Request(stop_transaction)) => {
+                    info!(
+                        "\n{0}\n {1}\n{stop_transaction:?}",
+                        " CALL ".on_truecolor(0, 0, 0).bold(),
+                        " REQUEST ".on_truecolor(0, 99, 255)
+                    );
+                    let response = OcppCallResult {
+                        message_type_id: 3,
+                        message_id,
+                        payload: OcppPayload::StopTransaction(StopTransactionKind::Response(
+                            StopTransactionResponse {
+                                id_tag_info: Some(rust_ocpp::v1_6::types::IdTagInfo {
+                                    status: rust_ocpp::v1_6::types::AuthorizationStatus::Accepted,
+                                    expiry_date: None,
+                                    parent_id_tag: None,
+                                }),
+                            },
+                        )),
+                    };
+                    let response_json = serde_json::to_string(&response).unwrap();
+                    info!(
+                        "\n{0}\n {1}\n{response_json:?}",
+                        " CALL RESULT "
+                            .on_truecolor(0, 0, 0)
+                            .bold(),
+                        " RESPONSE ".on_truecolor(0, 125, 0)
+                    );
+                    socket
+                        .send(axum::extract::ws::Message::Text(response_json))
+                        .await
+                        .unwrap();
+                },
+                _ => (),
+            }
         },
         UnlockConnector => {
-            info!("Handling OCPP UnlockConnector action");
         },
     }
 }

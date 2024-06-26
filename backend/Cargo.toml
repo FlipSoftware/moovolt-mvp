@@ -20,3 +20,4 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 headers = "0.4.0"
 strum_macros = "0.26.4"
+owo-colors = { version = "4.0.0", features = ["supports-color", "supports-colors"] }

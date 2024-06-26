@@ -11,36 +11,24 @@ use dotenvy_macro::dotenv;
 use futures::StreamExt;
 use rust_ocpp::v1_6::messages::{
     authorize::{AuthorizeRequest, AuthorizeResponse},
-    boot_notification::{self, BootNotificationRequest, BootNotificationResponse},
-    cancel_reservation::CancelReservationRequest,
+    boot_notification::{BootNotificationRequest, BootNotificationResponse},
     change_availability::ChangeAvailabilityRequest,
     change_configuration::{ChangeConfigurationRequest, ChangeConfigurationResponse},
     clear_cache::ClearCacheRequest,
-    clear_charging_profile::ClearChargingProfileRequest,
     data_transfer::DataTransferRequest,
-    diagnostics_status_notification::DiagnosticsStatusNotificationRequest,
-    firmware_status_notification::FirmwareStatusNotificationRequest,
-    get_composite_schedule::GetCompositeScheduleRequest,
     get_configuration::{GetConfigurationRequest, GetConfigurationResponse},
-    get_diagnostics::GetDiagnosticsRequest,
-    get_local_list_version::GetLocalListVersionRequest,
     heart_beat::HeartbeatRequest,
     meter_values::MeterValuesRequest,
     remote_start_transaction::RemoteStartTransactionRequest,
     remote_stop_transaction::RemoteStopTransactionRequest,
-    reserve_now::ReserveNowRequest,
     reset::ResetRequest,
-    send_local_list::SendLocalListRequest,
-    set_charging_profile::SetChargingProfileRequest,
     start_transaction::{StartTransactionRequest, StartTransactionResponse},
     status_notification::StatusNotificationRequest,
-    trigger_message::TriggerMessageRequest,
     unlock_connector::UnlockConnectorRequest,
-    update_firmware::UpdateFirmwareRequest,
 };
 use strum_macros::Display;
 use tokio::{net, sync::OnceCell};
-use tracing::{debug, error, event, info, warn, Level};
+use tracing::{debug, error, info, warn, Level};
 
 type OcppMessageTypeId = usize;
 type OcppMessageId = String;
@@ -128,97 +116,97 @@ impl FromStr for OcppActionEnum {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum AuthorizeKind {
+pub enum AuthorizeKind {
     Request(AuthorizeRequest),
     Response(AuthorizeResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum BootNotificationKind {
+pub enum BootNotificationKind {
     Request(BootNotificationRequest),
     Response(BootNotificationResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum ChangeAvailabilityKind {
+pub enum ChangeAvailabilityKind {
     Request(ChangeAvailabilityRequest),
     Response(ChangeAvailabilityRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum ChangeConfigurationKind {
+pub enum ChangeConfigurationKind {
     Request(ChangeConfigurationRequest),
     Response(ChangeConfigurationResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum ClearCacheKind {
+pub enum ClearCacheKind {
     Request(ClearCacheRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum DataTransferKind {
+pub enum DataTransferKind {
     Request(DataTransferRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum GetConfigurationKind {
+pub enum GetConfigurationKind {
     Request(GetConfigurationRequest),
     Response(GetConfigurationResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum HeartbeatKind {
+pub enum HeartbeatKind {
     Request(HeartbeatRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum MeterValuesKind {
+pub enum MeterValuesKind {
     Request(MeterValuesRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum RemoteStartTransactionKind {
+pub enum RemoteStartTransactionKind {
     Request(RemoteStartTransactionRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum RemoteStopTransactionKind {
+pub enum RemoteStopTransactionKind {
     Request(RemoteStopTransactionRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum ResetKind {
+pub enum ResetKind {
     Request(ResetRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum StartTransactionKind {
+pub enum StartTransactionKind {
     Request(StartTransactionRequest),
     Response(StartTransactionResponse),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum StatusNotificationKind {
+pub enum StatusNotificationKind {
     Request(StatusNotificationRequest),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Display)]
 #[serde(untagged)]
-enum UnlockConnectorKind {
+pub enum UnlockConnectorKind {
     Request(UnlockConnectorRequest),
 }
 
@@ -441,7 +429,7 @@ async fn handle_ocpp_messages(message: String, socket: &mut axum::extract::ws::W
 
 // Handle the incoming OCPP Call messages
 async fn handle_ocpp_call(
-    message_type_id: OcppMessageTypeId,
+    _: OcppMessageTypeId,
     message_id: OcppMessageId,
     action: OcppActionEnum,
     payload: serde_json::Value,
@@ -538,10 +526,10 @@ async fn handle_ocpp_call(
 
 // Handle the incoming OCPP CallResult messages
 async fn handle_ocpp_call_result(
-    message_type_id: OcppMessageTypeId,
-    message_id: OcppMessageId,
+    _: OcppMessageTypeId,
+    _: OcppMessageId,
     payload: serde_json::Value,
-    socket: &mut axum::extract::ws::WebSocket,
+    _: &mut axum::extract::ws::WebSocket,
 ) {
     match serde_json::from_value::<OcppPayload>(payload) {
         Ok(ocpp_payload) => {

@@ -404,39 +404,62 @@ async fn handle_ocpp_call(
     use OcppActionEnum::*;
     match action {
         Authorize => {
-            info!("Handling OCPP Authorize action");
+            match payload {
+                OcppPayload::Authorize(AuthorizeKind::Request(authorize)) => {
+                    info!("Validating OCPP Authorize: {authorize:?}");
+                    let response = OcppCallResult {
+                        message_type_id: 3, // 3 = CallResult or CallError sent by the server
+                        message_id,
+                        payload: OcppPayload::Authorize(AuthorizeKind::Response(
+                            AuthorizeResponse {
+                                id_tag_info: rust_ocpp::v1_6::types::IdTagInfo {
+                                    status: rust_ocpp::v1_6::types::AuthorizationStatus::Accepted,
+                                    expiry_date: None,
+                                    parent_id_tag: None,
+                                },
+                            },
+                        )),
+                    };
+                    let response_json = serde_json::to_string(&response).unwrap();
+                    info!("Sending OCPP Authorize: {response_json}");
+                    socket
+                        .send(axum::extract::ws::Message::Text(response_json))
+                        .await
+                        .unwrap();
+                },
+                _ => (),
+            }
         },
         BootNotification => {
-            info!("Handling OCPP BootNotification action");
             match payload {
                 OcppPayload::BootNotification(BootNotificationKind::Request(boot_notification)) => {
                     if boot_notification.charge_point_serial_number
                         == Some("NKYK430037668".to_string())
                     {
                         info!("Validating OCPP BootNotification: {boot_notification:?}");
+                        let response = OcppCallResult {
+                            message_type_id: 3, // 3 = CallResult or CallError sent by the server
+                            message_id,
+                            payload: OcppPayload::BootNotification(BootNotificationKind::Response(
+                                BootNotificationResponse {
+                                    status: rust_ocpp::v1_6::types::RegistrationStatus::Accepted,
+                                    current_time: Utc::now(),
+                                    interval: 60,
+                                },
+                            )),
+                        };
+                        let response_json = serde_json::to_string(&response).unwrap();
+                        info!("Sending OCPP BootNotification: {response_json}");
+                        socket
+                            .send(axum::extract::ws::Message::Text(response_json))
+                            .await
+                            .unwrap();
                     } else {
                         warn!("Invalid OCPP BootNotification: {boot_notification:?}");
                     }
                 },
                 _ => (),
             }
-            let response = OcppCallResult {
-                message_type_id: 3, // 3 = CallResult or CallError sent by the server
-                message_id,
-                payload: OcppPayload::BootNotification(BootNotificationKind::Response(
-                    BootNotificationResponse {
-                        status: rust_ocpp::v1_6::types::RegistrationStatus::Accepted,
-                        current_time: Utc::now(),
-                        interval: 60,
-                    },
-                )),
-            };
-            let response_json = serde_json::to_string(&response).unwrap();
-            info!("Sending OCPP BootNotification: {response_json}");
-            socket
-                .send(axum::extract::ws::Message::Text(response_json))
-                .await
-                .unwrap();
         },
         ChangeAvailability => {
             info!("Handling OCPP ChangeAvailability action");
@@ -531,4 +554,3 @@ async fn healthcheck_route() -> impl axum::response::IntoResponse {
         axum::response::Html::from(format!("<h1>Server has not started yet</h1>"))
     }
 }
-

@@ -343,13 +343,14 @@ async fn upgrade_to_ws(
     user_agent: Option<TypedHeader<headers::UserAgent>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl axum::response::IntoResponse {
-    // Check if the user agent is a valid OCPP client
+    // Check if the user agent is a valid client
+    warn!("{user_agent:?}");
     match user_agent {
-        Some(user_agent) => {
-            if user_agent.as_str() == "OCPP" {
-                info!("User agent is a valid OCPP client: {user_agent:?}");
+        Some(TypedHeader(agent)) => {
+            if agent.as_str() == "Websocket Client" {
+                info!("{agent} user agent is a valid client");
             } else {
-                warn!("User agent is not a valid OCPP client: {user_agent:?}");
+                warn!("User agent {agent} is not a valid Websocket Client");
             }
         },
         None => warn!("User agent is not present"),

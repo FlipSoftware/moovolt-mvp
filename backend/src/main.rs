@@ -57,23 +57,6 @@ pub enum OcppActionEnum {
     StartTransaction,
     StopTransaction,
     UnlockConnector,
-    // // Firmware
-    // DiagnosticsStatusNotification,
-    // FirmwareStatusNotification,
-    // GetDiagnostics,
-    // UpdateFirmware,
-    // // Local Authorization
-    // GetLocalListVersion,
-    // SendLocalList,
-    // // Remote Trigger
-    // CancelReservation,
-    // ReserveNow,
-    // // Reservation
-    // ClearChargingProfile,
-    // GetCompositeSchedule,
-    // SetChargingProfile,
-    // // Smart Charging
-    // TriggerMessage,
 }
 
 impl FromStr for OcppActionEnum {
@@ -97,18 +80,6 @@ impl FromStr for OcppActionEnum {
             "StartTransaction" => Ok(Self::StartTransaction),
             "StopTransaction" => Ok(Self::StopTransaction),
             "UnlockConnector" => Ok(Self::UnlockConnector),
-            // "DiagnosticsStatusNotification" => Ok(Self::DiagnosticsStatusNotification),
-            // "FirmwareStatusNotification" => Ok(Self::FirmwareStatusNotification),
-            // "GetDiagnostics" => Ok(Self::GetDiagnostics),
-            // "UpdateFirmware" => Ok(Self::UpdateFirmware),
-            // "GetLocalListVersion" => Ok(Self::GetLocalListVersion),
-            // "SendLocalList" => Ok(Self::SendLocalList),
-            // "CancelReservation" => Ok(Self::CancelReservation),
-            // "ReserveNow" => Ok(Self::ReserveNow),
-            // "ClearChargingProfile" => Ok(Self::ClearChargingProfile),
-            // "GetCompositeSchedule" => Ok(Self::GetCompositeSchedule),
-            // "SetChargingProfile" => Ok(Self::SetChargingProfile),
-            // "TriggerMessage" => Ok(Self::TriggerMessage),
             _ => Err(format!("Unknown OCPP action: {str}")),
         }
     }
@@ -215,39 +186,22 @@ pub enum UnlockConnectorKind {
 pub enum OcppPayload {
     // OCPP 1.6 JSON
     // Core
-    Authorize(AuthorizeKind),                     // Charger → Server
-    BootNotification(BootNotificationKind),       // Charger → Server
-    ChangeAvailability(ChangeAvailabilityKind),    // Server → Charger
-    ChangeConfiguration(ChangeConfigurationKind), // Server → Charger
-    ClearCache(ClearCacheKind),                    // Server → Charger
-    DataTransfer(DataTransferKind),                // Both Directions
-    GetConfiguration(GetConfigurationKind),       // Server → Charger
-    Heartbeat(HeartbeatKind),                      // Charger → Server
-    MeterValues(MeterValuesKind),                  // Charger → Server
+    Authorize(AuthorizeKind),                           // Charger → Server
+    BootNotification(BootNotificationKind),             // Charger → Server
+    ChangeAvailability(ChangeAvailabilityKind),         // Server → Charger
+    ChangeConfiguration(ChangeConfigurationKind),       // Server → Charger
+    ClearCache(ClearCacheKind),                         // Server → Charger
+    DataTransfer(DataTransferKind),                     // Both Directions
+    GetConfiguration(GetConfigurationKind),             // Server → Charger
+    Heartbeat(HeartbeatKind),                           // Charger → Server
+    MeterValues(MeterValuesKind),                       // Charger → Server
     RemoteStartTransaction(RemoteStartTransactionKind), // Server → Charger
-    RemoteStopTransaction(RemoteStopTransactionKind), // Server → Charger
-    Reset(ResetKind),                              // Server → Charger
-    StartTransaction(StartTransactionKind),       // Charger → Server
-    StatusNotification(StatusNotificationKind),    // Charger → Server
-    StopTransaction(StatusNotificationKind),       // Charger → Server
-    UnlockConnector(UnlockConnectorKind),          // Server → Charger
-    // // Firmware
-    // DiagnosticsStatusNotification(DiagnosticsStatusNotificationRequest), // Charger → Server
-    // FirmwareStatusNotification(FirmwareStatusNotificationRequest),       // Charger → Server
-    // GetDiagnostics(GetDiagnosticsRequest),                               // Server → Charger
-    // UpdateFirmware(UpdateFirmwareRequest),                               // Server → Charger
-    // // Local Authorization
-    // GetLocalListVersion(GetLocalListVersionRequest), // Server → Charger
-    // SendLocalList(SendLocalListRequest),             // Server → Charger
-    // // Remote Trigger
-    // CancelReservation(CancelReservationRequest), // Server → Charger
-    // ReserveNow(ReserveNowRequest),               // Server → Charger
-    // // Reservation
-    // ClearChargingProfile(ClearChargingProfileRequest), // Server → Charger
-    // GetCompositeSchedule(GetCompositeScheduleRequest), // Server → Charger
-    // SetChargingProfile(SetChargingProfileRequest),     // Server → Charger
-    // // Smart Chargin
-    // TriggerMessage(TriggerMessageRequest), // Server → Charger
+    RemoteStopTransaction(RemoteStopTransactionKind),   // Server → Charger
+    Reset(ResetKind),                                   // Server → Charger
+    StartTransaction(StartTransactionKind),             // Charger → Server
+    StatusNotification(StatusNotificationKind),         // Charger → Server
+    StopTransaction(StatusNotificationKind),            // Charger → Server
+    UnlockConnector(UnlockConnectorKind),               // Server → Charger
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
@@ -444,7 +398,7 @@ async fn handle_ocpp_call(
         Err(err) => {
             error!("Failed to parse OCPP Payload: {err:?}");
             return;
-        }
+        },
     };
     // Handle the OCPP Action
     use OcppActionEnum::*;
@@ -456,22 +410,26 @@ async fn handle_ocpp_call(
             info!("Handling OCPP BootNotification action");
             match payload {
                 OcppPayload::BootNotification(BootNotificationKind::Request(boot_notification)) => {
-                    if boot_notification.charge_point_serial_number == Some("NKYK430037668".to_string()) {
+                    if boot_notification.charge_point_serial_number
+                        == Some("NKYK430037668".to_string())
+                    {
                         info!("Validating OCPP BootNotification: {boot_notification:?}");
                     } else {
                         warn!("Invalid OCPP BootNotification: {boot_notification:?}");
                     }
                 },
-                _ => ()
+                _ => (),
             }
             let response = OcppCallResult {
                 message_type_id: 3, // 3 = CallResult or CallError sent by the server
                 message_id,
-                payload: OcppPayload::BootNotification(BootNotificationKind::Response(BootNotificationResponse {
-                    status: rust_ocpp::v1_6::types::RegistrationStatus::Accepted,
-                    current_time: Utc::now(),
-                    interval: 60,
-                })),
+                payload: OcppPayload::BootNotification(BootNotificationKind::Response(
+                    BootNotificationResponse {
+                        status: rust_ocpp::v1_6::types::RegistrationStatus::Accepted,
+                        current_time: Utc::now(),
+                        interval: 60,
+                    },
+                )),
             };
             let response_json = serde_json::to_string(&response).unwrap();
             info!("Sending OCPP BootNotification: {response_json}");
@@ -574,10 +532,3 @@ async fn healthcheck_route() -> impl axum::response::IntoResponse {
     }
 }
 
-// fn default_error_response() -> BootNotificationResponse {
-//     BootNotificationResponse {
-//         status: rust_ocpp::v1_6::types::RegistrationStatus::Rejected,
-//         current_time: Utc::now(),
-//         interval: 60,
-//     }
-// }

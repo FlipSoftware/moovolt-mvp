@@ -1,17 +1,23 @@
 cargo-features = ["edition2024"]
 
 [package]
-name = "moovolt-csms-server"
+name = "moovolt-backend-csms"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "*", features = ["full"] }
-axum = { git = "https://github.com/tokio-rs/axum.git", features = ["ws"] }
-tracing = "*"
-tracing-subscriber = "*"
-serde = { version = "*", features = ["derive"] }
-serde_json = "*"
-tower-http = { version = "*", features = ["fs", "trace"] }
-rust-ocpp = "*"
-strum_macros = "*"
+axum = { version = "0.7.5", features = ["ws", "macros"] }
+axum-extra = { version = "0.9.3", features = ["typed-header"] }
+chrono = "0.4.38"
+dotenv-linter = "3.3.0"
+dotenvy_macro = "0.15.7"
+rust-ocpp = { version = "1.0.0", default-features = false, features = ["v1_6"] }
+serde = "1.0.203"
+serde_json = "1.0.117"
+tokio = { version = "1.38.0", features = ["rt-multi-thread"] }
+futures = "0.3.30"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+headers = "0.4.0"
+strum_macros = "0.26.4"
+owo-colors = { version = "4.0.0", features = ["supports-color", "supports-colors"] }
